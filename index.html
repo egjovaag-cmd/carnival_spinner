@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Carnival Spinner Simulator v7</title>
+
+<style>
+body{
+    font-family:Arial,sans-serif;
+    text-align:center;
+    background:#f4f4f4;
+    margin:20px;
+}
+
+canvas{
+    background:white;
+    border-radius:50%;
+    box-shadow:0 0 8px #999;
+}
+
+.controls{
+    margin:15px;
+}
+
+.pointer{
+    width:0;
+    height:0;
+    border-left:15px solid transparent;
+    border-right:15px solid transparent;
+    border-top:30px solid #d00;
+    margin:0 auto 5px;
+}
+
+table{
+    margin:10px auto;
+    border-collapse:collapse;
+}
+
+td,th{
+    border:1px solid #999;
+    padding:4px 8px;
+}
+
+button{
+    margin:2px;
+    padding:6px 10px;
+}
+</style>
+</head>
+
+<body>
+
+<h2>Carnival Spinner Simulator</h2>
+
+<div class="pointer"></div>
+
+<canvas id="wheel" width="420" height="420"></canvas>
+
+<div class="controls">
+    Spaces:
+    <input id="spaces" type="number" min="2" max="20" value="8">
+
+    <button onclick="spinOnce()">Spin Once</button>
+    <button onclick="runTrials(100)">100</button>
+    <button onclick="runTrials(500)">500</button>
+    <button onclick="runTrials(1000)">1000</button>
+    <button onclick="resetStats()">Reset</button>
+</div>
+
+<div id="result">Result: -</div>
+<div id="total">Total Spins: 0</div>
+
+<div id="freq"></div>
+
+<script>
+
+const canvas = document.getElementById("wheel");
+const ctx = canvas.getContext("2d");
+
+const spacesInput = document.getElementById("spaces");
+const resultDiv = document.getElementById("result");
+const totalDiv = document.getElementById("total");
+const freqDiv = document.getElementById("freq");
+
+let rotation = 0;
+let totalSpins = 0;
+let frequencies = {};
+
+function getSpaces() {
+    return Math.max(
+        2,
+        Math.min(
+            20,
+            parseInt(spacesInput.value) || 8
+        )
+    );
+}
+
+function drawWheel() {
+
+    const numSpaces = getSpaces();
+    const angle = (2 * Math.PI) / numSpaces;
+
+    const centerX = 210;
+    const centerY = 210;
+    const radius = 200;
+
+    ctx.clearRect(0,0,420,420);
+
+    for(let i = 0; i < numSpaces; i++) {
+
+        const start =
+            -Math.PI/2 - angle/2 + i * angle;
+
+        const end =
+            -Math.PI/2 - angle/2 + (i+1) * angle;
+
+        ctx.beginPath();
+        ctx.moveTo(centerX, centerY);
+        ctx.arc(centerX, centerY, radius, start, end);
+        ctx.closePath();
+
+        ctx.fillStyle =
+            `hsl(${i*360/numSpaces},80%,65%)`;
+
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.save();
+
+        ctx.translate(centerX, centerY);
+
+        ctx.rotate(-Math.PI/2 + i * angle);
+
+        ctx.fillStyle = "black";
+        ctx.font = "20px Arial";
+        ctx.textAlign = "center";
+
+        ctx.fillText(i + 1, 145, 7);
+
+        ctx.restore();
+    }
+}
+
+function updateTable() {
+
+    const numSpaces = getSpaces();
+
+    let html =
+        "<table>" +
+        "<tr><th>Space</th><th>Frequency</th></tr>";
+
+    for(let i=1; i<=numSpaces; i++) {
+
+        html +=
+            "<tr>" +
+            "<td>" + i + "</td>" +
+            "<td>" + (frequencies[i] || 0) + "</td>" +
+            "</tr>";
+    }
+
+    html += "</table>";
+
+    freqDiv.innerHTML = html;
+
+    totalDiv.textContent =
+        "Total Spins: " + totalSpins;
+}
+
+function resetStats() {
+
+    frequencies = {};
+    totalSpins = 0;
+
+    resultDiv.textContent =
+        "Result: -";
+
+    updateTable();
+}
+
+function spinOnce() {
+
+    const numSpaces = getSpaces();
+
+    const winner =
+        Math.floor(Math.random()*numSpaces) + 1;
+
+    const segmentSize =
+        360 / numSpaces;
+
+    const targetAngle =
+        (360 - ((winner - 1) * segmentSize)) % 360;
+
+    const currentAngle =
+        rotation % 360;
+
+    const extraRotations =
+        6 + Math.floor(Math.random()*5);
+
+    const finalRotation =
+        rotation +
+        (extraRotations * 360) +
+        ((targetAngle - currentAngle + 360) % 360);
+
+    const startRotation = rotation;
+
+    let startTime = null;
+
+    function animate(timestamp) {
+
+        if(!startTime) {
+            startTime = timestamp;
+        }
+
+        const elapsed =
+            timestamp - startTime;
+
+        const duration = 2500;
+
+        const progress =
+            Math.min(elapsed / duration, 1);
+
+        const eased =
+            1 - Math.pow(1 - progress, 3);
+
+        rotation =
+            startRotation +
+            (finalRotation - startRotation) * eased;
+
+        canvas.style.transform =
+            `rotate(${rotation}deg)`;
+
+        if(progress < 1) {
+
+            requestAnimationFrame(animate);
+
+        } else {
+
+            rotation = finalRotation;
+
+            resultDiv.textContent =
+                "Result: " + winner;
+
+            frequencies[winner] =
+                (frequencies[winner] || 0) + 1;
+
+            totalSpins++;
+
+            updateTable();
+        }
+    }
+
+    requestAnimationFrame(animate);
+}
+
+function runTrials(count) {
+
+    const numSpaces = getSpaces();
+
+    for(let i=0; i<count; i++) {
+
+        const result =
+            Math.floor(Math.random() * numSpaces) + 1;
+
+        frequencies[result] =
+            (frequencies[result] || 0) + 1;
+
+        totalSpins++;
+    }
+
+    updateTable();
+}
+
+spacesInput.addEventListener("change", () => {
+
+    resetStats();
+    drawWheel();
+
+});
+
+drawWheel();
+updateTable();
+
+</script>
+
+</body>
+</html>
